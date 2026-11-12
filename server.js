@@ -1,16 +1,6 @@
 const express = require('express');
-const fs = require('fs');
-const path = require('path');
 const app = express();
-const PORT = process.env.PORT || 3000;
-
-app.use(express.json());
-app.use(express.static('public'));
-
-const DATA_FILE = path.join(__dirname, 'data', 'scores.json');
 const GROUPS = ['group1', 'group2', 'group3', 'group4', 'group5'];
-
-// 👇这里修改了小组名称
 const GROUP_NAMES = {
     group1: '1. “食”全“食”美小组',
     group2: '2. 美食美“克”小组',
@@ -18,70 +8,38 @@ const GROUP_NAMES = {
     group4: '4. 美味营养小组',
     group5: '5. 食“光”小组'
 };
-
 const ROLES = {
     professional: { weight: 0.5, name: '专业评委' },
     public:       { weight: 0.3, name: '大众评委' },
     student:      { weight: 0.2, name: '学生评委' }
 };
 
-function ensureDataFile() {
-    const dir = path.dirname(DATA_FILE);
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    if (!fs.existsSync(DATA_FILE)) {
-        fs.writeFileSync(DATA_FILE, JSON.stringify({ submissions: [] }, null, 2));
-    }
-}
+// ⚠️ 注意：腾讯云环境不能直接写本地文件，所以数据存在内存里
+// 重启服务数据会清空（单次活动完全够用，活动结束前别重启）
+let submissions = []; 
 
-function readData() {
-    ensureDataFile();
-    try {
-        return JSON.parse(fs.readFileSync(DATA_FILE, 'utf-8'));
-    } catch (e) {
-        return { submissions: [] };
-    }
-}
+app.use(express.json());
+app.use(express.static('public'));
 
-function writeData(data) {
-    ensureDataFile();
-    fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
-}
-
-// ========== 1. 提交评分接口 ==========
+// 提交评分
 app.post('/api/submit', (req, res) => {
     try {
         const { judgeName, role, scores } = req.body;
-        if (!judgeName || !role || !scores) {
-            return res.status(400).json({ success: false, message: '缺少参数' });
-        }
+        if (!judgeName || !role || !scores) return res.status(400).json({ success: false, message: '缺少参数' });
         
-        const data = readData();
-        const exists = data.submissions.find(s => s.judgeName === judgeName && s.role === role);
-        if (exists) {
-            return res.status(400).json({ success: false, message: '您已经提交过评分了' });
-        }
+        const exists = submissions.find(s => s.judgeName === judgeName && s.role === role);
+        if (exists) return res.status(400).json({ success: false, message: '您已经提交过评分了' });
 
-        data.submissions.push({
-            judgeName,
-            role,
-            scores,
-            submittedAt: new Date().toISOString()
-        });
-        writeData(data);
-
+        submissions.push({ judgeName, role, scores });
         res.json({ success: true, message: '提交成功！' });
     } catch (error) {
-        console.error('提交出错:', error);
-        res.status(500).json({ success: false, message: '服务器内部错误' });
+        res.status(500).json({ success: false, message: '服务器错误' });
     }
 });
 
-// ========== 2. 后台获取结果接口 ==========
+// 获取结果（包含去最高最低分逻辑）
 app.get('/api/results', (req, res) => {
     try {
-        const data = readData();
-        const submissions = data.submissions || [];
-
         const groupResults = {};
         GROUPS.forEach(g => {
             groupResults[g] = { groupName: GROUP_NAMES[g], breakdown: {}, totalScore: 0 };
@@ -136,17 +94,15 @@ app.get('/api/results', (req, res) => {
             ranked: rankedGroups
         });
     } catch (error) {
-        console.error('获取结果出错:', error);
         res.status(500).json({ success: false, message: '统计失败' });
     }
 });
 
-// ========== 3. 清空数据 ==========
+// 清空数据
 app.post('/api/reset', (req, res) => {
-    writeData({ submissions: [] });
+    submissions = [];
     res.json({ success: true });
 });
 
-app.listen(PORT, () => {
-    console.log(`✅ 服务已启动: http://localhost:${PORT}`);
-});
+// ⚠️ 重点：腾讯云需要导出这个 app，而不是 listen 端口
+module.exports = app;
