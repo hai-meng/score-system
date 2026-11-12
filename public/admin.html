@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>评分管理后台</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, sans-serif; }
+  body { background: #0d1e3f; min-height: 100vh; color: white; padding: 20px; }
+  .container { max-width: 1200px; margin: 0 auto; }
+  .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+  h1 { font-size: 1.6rem; }
+  .btn { padding: 10px 20px; border-radius: 10px; border: none; cursor: pointer; font-weight: bold; margin-left: 10px; }
+  .btn-blue { background: #2563eb; color: white; }
+  .btn-red { background: #3a2a2a; color: #ff9a9a; }
+  
+  .stats-bar { background: #1a2d52; padding: 16px 24px; border-radius: 16px; margin-bottom: 24px; display: flex; gap: 30px; font-size: 1.1rem; }
+  .stats-bar span { color: #ffd966; font-weight: bold; }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; }
+  .card { background: white; color: #333; border-radius: 16px; padding: 20px; box-shadow: 0 10px 20px rgba(0,0,0,0.2); }
+  .card.top1 { border: 3px solid #ffd966; transform: scale(1.02); }
+  .card-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dashed #ddd; padding-bottom: 10px; margin-bottom: 15px; }
+  .card-header h2 { font-size: 1.2rem; color: #0d1e3f; }
+  .rank { background: #eee; padding: 4px 12px; border-radius: 20px; font-weight: bold; font-size: 0.9rem; }
+  .rank.top1 { background: #ffd966; color: #5a3d00; }
+  
+  .total-score { text-align: center; font-size: 2.5rem; font-weight: bold; color: #2563eb; margin: 10px 0; }
+  .role-detail { font-size: 0.9rem; color: #666; display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px dotted #eee; }
+  .role-detail span.score { color: #2563eb; font-weight: bold; }
+
+  .loading { text-align: center; font-size: 1.2rem; color: #888; margin-top: 50px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>📊 评分管理后台</h1>
+    <div>
+      <button class="btn btn-blue" onclick="loadData()">🔄 刷新</button>
+      <button class="btn btn-red" onclick="resetData()">🗑 清空数据</button>
+    </div>
+  </div>
+  
+  <div id="content">
+    <div class="loading">加载中...</div>
+  </div>
+</div>
+
+<script>
+async function loadData() {
+  document.getElementById('content').innerHTML = '<div class="loading">加载中...</div>';
+  try {
+    const res = await fetch('/api/results');
+    const data = await res.json();
+    render(data);
+  } catch (err) {
+    document.getElementById('content').innerHTML = '<div class="loading" style="color:#ff9a9a;">服务器连接失败，请确认 node server.js 正在运行</div>';
+  }
+}
+
+function render(data) {
+  if (data.totalSubmissions === 0) {
+    document.getElementById('content').innerHTML = '<div class="loading">暂无任何评分数据，请先让评委提交</div>';
+    return;
+  }
+
+  let html = `
+    <div class="stats-bar">
+      <div>已收到评分：<span>${data.totalSubmissions}</span> 份</div>
+      <div>总小组数：<span>5</span> 组</div>
+    </div>
+    <div class="grid">
+  `;
+
+  data.groups.forEach(g => {
+    const isTop1 = g.rank === 1;
+    html += `
+      <div class="card ${isTop1 ? 'top1' : ''}">
+        <div class="card-header">
+          <h2>${g.groupName}</h2>
+          <div class="rank ${isTop1 ? 'top1' : ''}">第 ${g.rank} 名</div>
+        </div>
+        <div class="total-score">${g.totalScore.toFixed(2)}</div>
+    `;
+
+    g.breakdown.forEach(b => {
+      html += `
+        <div class="role-detail">
+          <span>${b.roleName} (权重${b.weight*100}%)</span>
+          <span class="score">${b.avg.toFixed(2)} 分</span>
+        </div>
+        <div class="role-detail" style="font-size:0.8rem; color:#999; border:none; padding-top:0;">
+          <span>参与${b.count}人</span>
+          <span>${b.count >= 3 ? `去分: ${b.removedMin.toFixed(1)} / ${b.removedMax.toFixed(1)}` : '人数不足未去分'}</span>
+        </div>
+      `;
+    });
+
+    html += `</div>`;
+  });
+
+  html += `</div>`;
+  document.getElementById('content').innerHTML = html;
+}
+
+async function resetData() {
+  if(!confirm('确定要清空所有数据吗？不可恢复！')) return;
+  await fetch('/api/reset', { method: 'POST' });
+  loadData();
+}
+
+loadData();
+setInterval(loadData, 5000); // 每5秒自动刷新
+</script>
+</body>
+</html>
