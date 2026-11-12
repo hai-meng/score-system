@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>评委评分 · 五组评分</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, sans-serif; }
+  body { background: #eef3fe; min-height: 100vh; padding: 20px; }
+  .card { background: white; border-radius: 20px; padding: 30px; max-width: 520px; margin: 0 auto; box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
+  h1 { text-align: center; margin-bottom: 20px; color: #333; }
+  label { display: block; font-weight: bold; margin: 15px 0 5px; color: #555; }
+  input, select { width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 8px; font-size: 16px; }
+  .row { display: flex; align-items: center; margin-bottom: 10px; }
+  .row label { flex: 0 0 150px; margin: 0; font-size: 0.95rem; }
+  button { width: 100%; padding: 15px; background: #2563eb; color: white; border: none; border-radius: 10px; font-size: 18px; font-weight: bold; margin-top: 25px; cursor: pointer; }
+  #msg { text-align: center; margin-top: 15px; color: red; font-weight: bold; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>🎯 评委评分</h1>
+  
+  <label>您的姓名</label>
+  <input type="text" id="judgeName" placeholder="请输入姓名">
+
+  <label>您的身份</label>
+  <select id="role">
+    <option value="professional">专业评委 (50%)</option>
+    <option value="public">大众评委 (30%)</option>
+    <option value="student">学生评委 (20%)</option>
+  </select>
+
+  <div style="margin-top:20px; border-top:1px dashed #ccc; padding-top:15px;">
+    <!-- 👇 这里修改了前端展示的小组名称 -->
+    <div class="row"><label>1. “食”全“食”美小组</label><input type="number" id="g1" placeholder="0-100"></div>
+    <div class="row"><label>2. 美食美“克”小组</label><input type="number" id="g2" placeholder="0-100"></div>
+    <div class="row"><label>3. 满汉全席小组</label><input type="number" id="g3" placeholder="0-100"></div>
+    <div class="row"><label>4. 美味营养小组</label><input type="number" id="g4" placeholder="0-100"></div>
+    <div class="row"><label>5. 食“光”小组</label><input type="number" id="g5" placeholder="0-100"></div>
+  </div>
+
+  <button onclick="submitData()">提交评分</button>
+  <div id="msg"></div>
+</div>
+
+<script>
+async function submitData() {
+  const msg = document.getElementById('msg');
+  msg.innerText = '提交中...';
+  msg.style.color = 'blue';
+
+  const judgeName = document.getElementById('judgeName').value.trim();
+  const role = document.getElementById('role').value;
+  
+  const s1 = document.getElementById('g1').value;
+  const s2 = document.getElementById('g2').value;
+  const s3 = document.getElementById('g3').value;
+  const s4 = document.getElementById('g4').value;
+  const s5 = document.getElementById('g5').value;
+
+  if (!judgeName || !s1 || !s2 || !s3 || !s4 || !s5) {
+    msg.innerText = '请填写完整姓名和5个小组的分数！';
+    msg.style.color = 'red';
+    return;
+  }
+
+  const payload = {
+    judgeName: judgeName,
+    role: role,
+    scores: {
+      group1: Number(s1),
+      group2: Number(s2),
+      group3: Number(s3),
+      group4: Number(s4),
+      group5: Number(s5)
+    }
+  };
+
+  try {
+    const res = await fetch('/api/submit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    
+    if (data.success) {
+      msg.innerText = '✅ 提交成功！';
+      msg.style.color = 'green';
+    } else {
+      msg.innerText = '❌ 失败: ' + data.message;
+      msg.style.color = 'red';
+    }
+  } catch (err) {
+    msg.innerText = '❌ 网络错误，请重试';
+    msg.style.color = 'red';
+  }
+}
+</script>
+</body>
+</html>
